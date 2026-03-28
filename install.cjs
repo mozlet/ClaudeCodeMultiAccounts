@@ -43,8 +43,11 @@ function installCommands() {
   const backupDir = path.join(home, '.claude', 'backups', 'multi-account-switch-installer');
   const cliSource = path.join(repoRoot, 'cc-switch.cjs');
   const sessionStartSource = path.join(repoRoot, 'session-start.cjs');
+  const statuslineSource = path.join(repoRoot, 'statusline.cjs');
   const cliTarget = path.join(binDir, 'cc-switch.cjs');
   const sessionStartTarget = path.join(hooksDir, 'session-start.cjs');
+  const statuslineTarget = path.join(hooksDir, 'statusline.cjs');
+  const statuslineTargetConfigPath = path.join(hooksDir, 'statusline-target.json');
   const hookCommand = process.platform === 'win32'
     ? `node "${cliTarget}" sync`
     : `node '${cliTarget}' sync`;
@@ -63,6 +66,7 @@ function installCommands() {
   ensureDir(userBinDir);
   fs.copyFileSync(cliSource, cliTarget);
   fs.copyFileSync(sessionStartSource, sessionStartTarget);
+  fs.copyFileSync(statuslineSource, statuslineTarget);
 
   if (process.platform === 'win32') {
     const switchCmd = `@echo off\r\nnode "${cliTarget}" --usage-command "cc-switch" %*\r\n`;
@@ -96,10 +100,28 @@ function installCommands() {
 
   backupFile(settingsPath, backupDir);
   const settings = readJson(settingsPath, {});
+  const existingStatusLine = settings.statusLine && typeof settings.statusLine === 'object' ? settings.statusLine : null;
   settings.$schema ||= 'https://json.schemastore.org/claude-code-settings.json';
   settings.hooks ||= {};
   settings.hooks.Notification ||= [];
   settings.hooks.SessionStart ||= [];
+
+  const statusLineCommand = process.platform === 'win32'
+    ? `node "${statuslineTarget}"`
+    : `node '${statuslineTarget}'`;
+
+  if (!existingStatusLine || existingStatusLine.command !== statusLineCommand) {
+    if (existingStatusLine?.type === 'command' && existingStatusLine.command) {
+      fs.writeFileSync(statuslineTargetConfigPath, `${JSON.stringify(existingStatusLine, null, 2)}\n`, 'utf8');
+    } else if (fs.existsSync(statuslineTargetConfigPath)) {
+      fs.rmSync(statuslineTargetConfigPath, { force: true });
+    }
+
+    settings.statusLine = {
+      type: 'command',
+      command: statusLineCommand
+    };
+  }
 
   let matcher = settings.hooks.Notification.find((entry) => entry && entry.matcher === 'auth_success');
   if (!matcher) {

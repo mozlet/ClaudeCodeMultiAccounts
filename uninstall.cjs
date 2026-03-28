@@ -31,12 +31,16 @@ function uninstallCommands() {
   const userBinDir = process.platform === 'win32' ? path.join(home, 'bin') : path.join(home, '.local', 'bin');
   const settingsPath = path.join(home, '.claude', 'settings.json');
   const backupDir = path.join(home, '.claude', 'backups', 'multi-account-switch-installer');
+  const statuslineTargetPath = path.join(installRoot, 'hooks', 'statusline-target.json');
   const hookCommand = process.platform === 'win32'
     ? `node "${path.join(installRoot, 'bin', 'cc-switch.cjs')}" sync`
     : `node '${path.join(installRoot, 'bin', 'cc-switch.cjs')}' sync`;
   const startupHookCommand = process.platform === 'win32'
     ? `node "${path.join(installRoot, 'hooks', 'session-start.cjs')}"`
     : `node '${path.join(installRoot, 'hooks', 'session-start.cjs')}'`;
+  const statusLineCommand = process.platform === 'win32'
+    ? `node "${path.join(installRoot, 'hooks', 'statusline.cjs')}"`
+    : `node '${path.join(installRoot, 'hooks', 'statusline.cjs')}'`;
 
   if (fs.existsSync(settingsPath)) {
     backupFile(settingsPath, backupDir);
@@ -63,6 +67,15 @@ function uninstallCommands() {
         })
         .filter(Boolean);
     }
+
+    if (settings.statusLine?.type === 'command' && settings.statusLine.command === statusLineCommand) {
+      if (fs.existsSync(statuslineTargetPath)) {
+        settings.statusLine = readJson(statuslineTargetPath, settings.statusLine);
+      } else {
+        delete settings.statusLine;
+      }
+    }
+
     writeJson(settingsPath, settings);
   }
 
