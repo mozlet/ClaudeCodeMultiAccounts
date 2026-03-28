@@ -1,0 +1,42 @@
+{
+  "name": "claude-code-multi-accounts",
+  "version": "0.1.0",
+  "description": "Installer and CLI for switching Claude Code oauthAccount entries across Windows, WSL, and Unix shells.",
+  "license": "MIT",
+  "type": "commonjs",
+  "bin": {
+    "claude-code-multi-accounts": "cli.cjs"
+  },
+  "files": [
+    "cc-switch.cjs",
+    "cli.cjs",
+    "install.cjs",
+    "install.cmd",
+    "install.sh",
+    "README.md",
+    "uninstall.cjs",
+    "uninstall.cmd",
+    "uninstall.sh"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "claude-code",
+    "oauth",
+    "switcher",
+    "wsl",
+    "windows"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Leuconoe/ClaudeCodeMultiAccounts.git"
+  },
+  "homepage": "https://github.com/Leuconoe/ClaudeCodeMultiAccounts#readme",
+  "bugs": {
+    "url": "https://github.com/Leuconoe/ClaudeCodeMultiAccounts/issues"
+  },
+  "scripts": {
+    "pack:check": "npm pack --dry-run"
+  }
+}
