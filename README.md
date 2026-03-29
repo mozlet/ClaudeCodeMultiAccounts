@@ -8,6 +8,8 @@ Supported user-facing commands:
 - `cc-sync-oauth`
 - `ccs` (short alias for `cc-switch`)
 - `ccso` (short alias for `cc-sync-oauth`)
+- `/cc-switch`
+- `/cc-sync-oauth`
 
 Supported environments:
 - Windows (PowerShell/CMD/Git Bash)
@@ -39,6 +41,7 @@ What install does:
 - adds an `auth_success` hook entry to `~/.claude/settings.json`
 - adds a `SessionStart` reminder hook to `~/.claude/settings.json`
 - if `statusLine.command` already exists, wraps it and prepends `use !cc-switch / !ccs` to the existing HUD output
+- installs global Claude command wrappers in `~/.claude/commands`
 - creates backups under `~/.claude/backups/multi-account-switch-installer`
 
 Uninstall:
@@ -96,6 +99,16 @@ Claude chat shell usage:
 !ccs
 !ccso
 ```
+
+Claude `/command` usage:
+
+```text
+/cc-switch
+/cc-switch 1
+/cc-sync-oauth
+```
+
+`/cc-switch` currently still goes through Claude's command-processing path, so `!cc-switch` remains the primary deterministic execution path. The slash command is installed now so it can benefit from future improvements in Claude's command handling.
 
 Claude startup reminder:
 

@@ -38,6 +38,7 @@ function installCommands() {
   const installRoot = path.join(home, '.claude', 'multi-account-switch');
   const binDir = path.join(installRoot, 'bin');
   const hooksDir = path.join(installRoot, 'hooks');
+  const commandsDir = path.join(home, '.claude', 'commands');
   const userBinDir = process.platform === 'win32' ? path.join(home, 'bin') : path.join(home, '.local', 'bin');
   const settingsPath = path.join(home, '.claude', 'settings.json');
   const backupDir = path.join(home, '.claude', 'backups', 'multi-account-switch-installer');
@@ -63,6 +64,7 @@ function installCommands() {
 
   ensureDir(binDir);
   ensureDir(hooksDir);
+  ensureDir(commandsDir);
   ensureDir(userBinDir);
   fs.copyFileSync(cliSource, cliTarget);
   fs.copyFileSync(sessionStartSource, sessionStartTarget);
@@ -97,6 +99,47 @@ function installCommands() {
     writeFileExecutable(path.join(userBinDir, 'ccs'), ccsSh);
     writeFileExecutable(path.join(userBinDir, 'ccso'), ccsoSh);
   }
+
+  const commandShell = process.platform === 'win32' ? 'node' : 'node';
+  const switchCommandPathLiteral = process.platform === 'win32' ? cliTarget.replace(/\\/g, '/') : cliTarget;
+  const switchCommandBody = process.platform === 'win32'
+    ? `node "${cliTarget}" --usage-command "/cc-switch" $ARGUMENTS`
+    : `node '${cliTarget}' --usage-command "/cc-switch" $ARGUMENTS`;
+  const syncCommandBody = process.platform === 'win32'
+    ? `node "${cliTarget}" sync`
+    : `node '${cliTarget}' sync`;
+  const switchAllowed = `Bash(${commandShell} ${switchCommandPathLiteral}:*)`;
+  const syncAllowed = `Bash(${commandShell} ${switchCommandPathLiteral}:*)`;
+
+  const switchCommandMarkdown = `---
+description: Show saved Claude OAuth accounts and switch \`oauthAccount\` by index, email, or account UUID.
+argument-hint: [index|email|accountUuid]
+allowed-tools: ["${switchAllowed}"]
+disable-model-invocation: true
+---
+
+Run the installed local switch command and use its output as the command result.
+
+0!
+${switchCommandBody}
+0
+`.replace(/\u00060!/g, '```!').replace(/\u00060\n/g, '```\n');
+
+  const syncCommandMarkdown = `---
+description: Sync the current Claude \`oauthAccount\` into \`oauthList\`.
+allowed-tools: ["${syncAllowed}"]
+disable-model-invocation: true
+---
+
+Run the installed local sync command and use its output as the command result.
+
+0!
+${syncCommandBody}
+0
+`.replace(/\u00060!/g, '```!').replace(/\u00060\n/g, '```\n');
+
+  fs.writeFileSync(path.join(commandsDir, 'cc-switch.md'), switchCommandMarkdown, 'utf8');
+  fs.writeFileSync(path.join(commandsDir, 'cc-sync-oauth.md'), syncCommandMarkdown, 'utf8');
 
   backupFile(settingsPath, backupDir);
   const settings = readJson(settingsPath, {});
@@ -152,7 +195,7 @@ function installCommands() {
   writeJson(settingsPath, settings);
 
   console.log(`Installed multi-account switcher scripts to ${installRoot}`);
-  console.log('Installed commands: cc-switch, cc-sync-oauth, ccs, ccso');
+  console.log('Installed commands: cc-switch, cc-sync-oauth, ccs, ccso, /cc-switch, /cc-sync-oauth');
 }
 
 installCommands();
