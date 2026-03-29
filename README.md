@@ -1,5 +1,7 @@
 # Claude Code Multi-Account Switcher
 
+[![npm version](https://img.shields.io/npm/v/claude-code-multi-accounts?label=npm)](https://www.npmjs.com/package/claude-code-multi-accounts)
+
 This project installs a local workaround for switching Claude Code OAuth accounts by updating `~/.claude.json`.
 
 Supported user-facing commands:
