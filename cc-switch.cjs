@@ -4,8 +4,18 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
+const STORE_VERSION = '0.2.0';
+
 function getDefaultConfigPath() {
   return path.join(os.homedir(), '.claude.json');
+}
+
+function getDefaultCredentialsPath() {
+  return path.join(os.homedir(), '.claude', '.credentials.json');
+}
+
+function getDefaultStorePath() {
+  return path.join(os.homedir(), '.ClaudeCodeMultiAccounts.json');
 }
 
 function getDefaultBackupDir() {
@@ -16,6 +26,8 @@ function parseArgs(argv) {
   const options = {
     usageCommand: '/switch',
     configPath: getDefaultConfigPath(),
+    credentialsPath: getDefaultCredentialsPath(),
+    storePath: getDefaultStorePath(),
     backupDir: getDefaultBackupDir(),
     syncOnly: false,
     selector: '',
@@ -30,6 +42,14 @@ function parseArgs(argv) {
     }
     if (current === '--config') {
       options.configPath = args.shift() || options.configPath;
+      continue;
+    }
+    if (current === '--credentials') {
+      options.credentialsPath = args.shift() || options.credentialsPath;
+      continue;
+    }
+    if (current === '--store') {
+      options.storePath = args.shift() || options.storePath;
       continue;
     }
     if (current === '--backup-dir') {
@@ -53,18 +73,25 @@ function ensureDir(dirPath) {
   fs.mkdirSync(dirPath, { recursive: true });
 }
 
-function readClaudeConfig(filePath) {
-  const raw = fs.readFileSync(filePath, 'utf8');
-  return JSON.parse(raw);
+function readJson(filePath) {
+  return JSON.parse(fs.readFileSync(filePath, 'utf8'));
 }
 
-function writeClaudeConfig(config, filePath, backupDir) {
+function readJsonIfExists(filePath, fallback) {
+  if (!fs.existsSync(filePath)) return fallback;
+  return readJson(filePath);
+}
+
+function writeJson(filePath, value) {
+  ensureDir(path.dirname(filePath));
+  fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
+}
+
+function backupFile(filePath, backupDir) {
+  if (!fs.existsSync(filePath)) return;
   ensureDir(backupDir);
   const timestamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\..+/, '').replace('T', '-');
-  if (fs.existsSync(filePath)) {
-    fs.copyFileSync(filePath, path.join(backupDir, `claude.json.${timestamp}.bak`));
-  }
-  fs.writeFileSync(filePath, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
+  fs.copyFileSync(filePath, path.join(backupDir, `${path.basename(filePath)}.${timestamp}.bak`));
 }
 
 function deepCopy(value) {
@@ -72,10 +99,10 @@ function deepCopy(value) {
 }
 
 function getAccountKey(account) {
-  if (account.accountUuid && String(account.accountUuid).trim()) {
+  if (account?.accountUuid && String(account.accountUuid).trim()) {
     return `uuid:${String(account.accountUuid).trim().toLowerCase()}`;
   }
-  if (account.emailAddress && String(account.emailAddress).trim()) {
+  if (account?.emailAddress && String(account.emailAddress).trim()) {
     return `email:${String(account.emailAddress).trim().toLowerCase()}`;
   }
   throw new Error('Account entry is missing both accountUuid and emailAddress.');
@@ -85,16 +112,16 @@ function isSuspiciousDisplayName(value) {
   return value.includes('\uFFFD') || (value.match(/\?/g) || []).length >= 2;
 }
 
-function getPreferredDisplayName(account) {
-  if (account.displayName && String(account.displayName).trim()) {
-    const displayName = String(account.displayName).trim();
+function getPreferredDisplayName(metadata) {
+  if (metadata?.displayName && String(metadata.displayName).trim()) {
+    const displayName = String(metadata.displayName).trim();
     if (!isSuspiciousDisplayName(displayName)) {
       return displayName;
     }
   }
 
-  if (account.emailAddress && String(account.emailAddress).trim()) {
-    const email = String(account.emailAddress).trim();
+  if (metadata?.emailAddress && String(metadata.emailAddress).trim()) {
+    const email = String(metadata.emailAddress).trim();
     const atIndex = email.indexOf('@');
     return atIndex > 0 ? email.slice(0, atIndex) : email;
   }
@@ -102,70 +129,79 @@ function getPreferredDisplayName(account) {
   return '(no display name)';
 }
 
-function inferPlanType(account) {
-  const hasOrgScope = Boolean(account.organizationRole) || Boolean(account.workspaceRole);
+function inferPlanType(entry) {
+  const metadata = entry.metadata || {};
+  const credential = entry.credentials?.claudeAiOauth || {};
+  const subscriptionType = credential.subscriptionType;
 
-  if (hasOrgScope) {
-    return account.billingType === 'stripe_subscription' ? 'Teams' : 'Enterprise';
+  if (subscriptionType === 'team') {
+    return 'Teams';
+  }
+  if (subscriptionType === 'enterprise') {
+    return 'Enterprise';
   }
 
-  if (account.hasExtraUsageEnabled === true) {
+  const hasOrgScope = Boolean(metadata.organizationRole) || Boolean(metadata.workspaceRole);
+  if (hasOrgScope) {
+    return metadata.billingType === 'stripe_subscription' ? 'Teams' : 'Enterprise';
+  }
+  if (metadata.hasExtraUsageEnabled === true) {
     return 'Max';
   }
-
-  if (account.billingType === 'stripe_subscription') {
+  if (metadata.billingType === 'stripe_subscription') {
     return 'Pro';
   }
-
   return 'Unknown';
 }
 
-function ensureOauthList(config) {
-  if (!Array.isArray(config.oauthList)) {
-    config.oauthList = [];
+function normalizeStore(store) {
+  const normalized = store && typeof store === 'object' ? store : {};
+  if (!Array.isArray(normalized.accounts)) {
+    normalized.accounts = [];
   }
-  return config.oauthList;
+  normalized.version = STORE_VERSION;
+  return normalized;
 }
 
-function syncOauthAccountList(config) {
-  if (!config.oauthAccount) {
+function getDisplayAccounts(store, currentMetadata) {
+  const currentKey = currentMetadata ? getAccountKey(currentMetadata) : null;
+  return store.accounts.map((entry, index) => ({
+    ...entry,
+    index,
+    current: currentKey && getAccountKey(entry.metadata) === currentKey,
+  }));
+}
+
+function syncStoreFromLive(store, config, credentials) {
+  if (!config?.oauthAccount) {
     throw new Error('The Claude config does not contain oauthAccount.');
   }
-
-  const existing = ensureOauthList(config);
-  const seen = new Set();
-  const deduped = [];
-  const currentKey = getAccountKey(config.oauthAccount);
-  let currentInserted = false;
-
-  for (const entry of existing) {
-    if (!entry) continue;
-    const key = getAccountKey(entry);
-    if (seen.has(key)) continue;
-    seen.add(key);
-    if (key === currentKey) {
-      deduped.push(deepCopy(config.oauthAccount));
-      currentInserted = true;
-    } else {
-      deduped.push(deepCopy(entry));
-    }
+  if (!credentials?.claudeAiOauth) {
+    throw new Error('The Claude credentials file does not contain claudeAiOauth.');
   }
 
-  if (!currentInserted) {
-    deduped.push(deepCopy(config.oauthAccount));
+  const key = getAccountKey(config.oauthAccount);
+  const snapshot = {
+    key,
+    metadata: deepCopy(config.oauthAccount),
+    credentials: deepCopy(credentials),
+    capturedAt: new Date().toISOString(),
+  };
+
+  const nextStore = normalizeStore(deepCopy(store));
+  const existingIndex = nextStore.accounts.findIndex((entry) => entry.key === key);
+  if (existingIndex >= 0) {
+    nextStore.accounts[existingIndex] = snapshot;
+  } else {
+    nextStore.accounts.push(snapshot);
   }
 
-  deduped.forEach((entry, index) => {
-    entry.index = index;
-  });
-
-  const before = JSON.stringify(config.oauthList || []);
-  const after = JSON.stringify(deduped);
-  config.oauthList = deduped;
+  nextStore.updatedAt = new Date().toISOString();
 
   return {
-    changed: before !== after,
-    list: config.oauthList,
+    changed: JSON.stringify(store) !== JSON.stringify(nextStore),
+    store: nextStore,
+    key,
   };
 }
 
@@ -183,7 +219,7 @@ function findSelection(accounts, selector) {
 
   const normalized = trimmed.toLowerCase();
   for (const entry of accounts) {
-    for (const candidate of [entry.accountUuid, entry.emailAddress, entry.displayName]) {
+    for (const candidate of [entry.key, entry.metadata?.accountUuid, entry.metadata?.emailAddress, entry.metadata?.displayName]) {
       if (candidate && String(candidate).trim().toLowerCase() === normalized) {
         return entry;
       }
@@ -193,75 +229,80 @@ function findSelection(accounts, selector) {
   throw new Error(`No account matched selector '${selector}'.`);
 }
 
-function setCurrentOauthAccount(config, selectedAccount) {
-  const nextAccount = deepCopy(selectedAccount);
-  delete nextAccount.index;
-  const before = config.oauthAccount ? JSON.stringify(config.oauthAccount) : null;
-  const after = JSON.stringify(nextAccount);
-  config.oauthAccount = nextAccount;
-  return {
-    changed: before !== after,
-    account: nextAccount,
-  };
-}
-
-function formatAccountSummary(accounts, currentAccount) {
-  const currentKey = currentAccount ? getAccountKey(currentAccount) : null;
+function formatAccountSummary(accounts) {
   return accounts.map((entry) => {
-    const marker = currentKey && getAccountKey(entry) === currentKey ? '*' : ' ';
-    const displayName = getPreferredDisplayName(entry);
-    const email = entry.emailAddress && String(entry.emailAddress).trim() ? entry.emailAddress : '(no email)';
-    const org = entry.organizationName && String(entry.organizationName).trim() ? entry.organizationName : '(no organization)';
+    const marker = entry.current ? '*' : ' ';
+    const metadata = entry.metadata || {};
+    const displayName = getPreferredDisplayName(metadata);
+    const email = metadata.emailAddress && String(metadata.emailAddress).trim() ? metadata.emailAddress : '(no email)';
+    const org = metadata.organizationName && String(metadata.organizationName).trim() ? metadata.organizationName : '(no organization)';
     const plan = inferPlanType(entry);
     return `${marker} [${entry.index}] ${displayName} <${email}> - ${org} - ${plan}`;
   });
 }
 
+function writeLiveState(config, credentials, options) {
+  backupFile(options.configPath, options.backupDir);
+  backupFile(options.credentialsPath, options.backupDir);
+  writeJson(options.configPath, config);
+  writeJson(options.credentialsPath, credentials);
+}
+
+function writeStore(store, options) {
+  backupFile(options.storePath, options.backupDir);
+  writeJson(options.storePath, store);
+}
+
 function main() {
   const options = parseArgs(process.argv.slice(2));
+
   try {
-    const config = readClaudeConfig(options.configPath);
-    const sync = syncOauthAccountList(config);
+    const config = readJson(options.configPath);
+    const credentials = readJson(options.credentialsPath);
+    const existingStore = normalizeStore(readJsonIfExists(options.storePath, { version: STORE_VERSION, accounts: [] }));
 
     if (options.syncOnly) {
-      if (sync.changed) {
-        writeClaudeConfig(config, options.configPath, options.backupDir);
-        console.log('Synced oauthAccount into oauthList.');
+      const result = syncStoreFromLive(existingStore, config, credentials);
+      if (result.changed) {
+        writeStore(result.store, options);
+        console.log(`Synced current account into ${path.basename(options.storePath)}.`);
       } else {
-        console.log('oauthList already matches oauthAccount.');
+        console.log(`${path.basename(options.storePath)} already matches the current account snapshot.`);
       }
       return;
     }
 
+    const synced = syncStoreFromLive(existingStore, config, credentials);
+    const store = synced.store;
+    const accounts = getDisplayAccounts(store, config.oauthAccount);
+
     if (!options.selector) {
-      if (sync.changed) {
-        writeClaudeConfig(config, options.configPath, options.backupDir);
-        console.log('Synced the active oauthAccount into oauthList before showing the account list.');
+      if (synced.changed) {
+        writeStore(store, options);
+        console.log(`Saved the current account snapshot into ${path.basename(options.storePath)} before showing the account list.`);
       }
       console.log('Available Claude accounts:');
-      for (const line of formatAccountSummary(config.oauthList, config.oauthAccount)) {
+      for (const line of formatAccountSummary(accounts)) {
         console.log(line);
       }
       console.log('');
-      console.log(`Run ${options.usageCommand} <index|email|accountUuid> to make one of these entries the active oauthAccount.`);
+      console.log(`Run ${options.usageCommand} <index|email|accountUuid> to make one of these stored entries the active Claude account.`);
       return;
     }
 
-    const selected = findSelection(config.oauthList, options.selector);
-    const switchResult = setCurrentOauthAccount(config, selected);
-    const postSwitchSync = syncOauthAccountList(config);
-    if (sync.changed || switchResult.changed || postSwitchSync.changed) {
-      writeClaudeConfig(config, options.configPath, options.backupDir);
-    }
+    const selected = findSelection(accounts, options.selector);
+    const nextConfig = deepCopy(config);
+    const nextCredentials = deepCopy(selected.credentials);
+    nextConfig.oauthAccount = deepCopy(selected.metadata);
 
-    const currentKey = getAccountKey(config.oauthAccount);
-    const currentEntry = config.oauthList.find((entry) => getAccountKey(entry) === currentKey);
-    const currentIndex = currentEntry ? currentEntry.index : '?';
-    const currentPlan = inferPlanType(config.oauthAccount);
-    console.log(`Switched active oauthAccount to [${currentIndex}] ${getPreferredDisplayName(config.oauthAccount)} <${config.oauthAccount.emailAddress}> (${currentPlan}).`);
+    writeLiveState(nextConfig, nextCredentials, options);
+
+    const currentAccounts = getDisplayAccounts(store, selected.metadata);
+    const currentPlan = inferPlanType(selected);
+    console.log(`Switched active account to [${selected.index}] ${getPreferredDisplayName(selected.metadata)} <${selected.metadata.emailAddress}> (${currentPlan}).`);
     console.log('');
-    console.log('Current account list:');
-    for (const line of formatAccountSummary(config.oauthList, config.oauthAccount)) {
+    console.log('Stored account list:');
+    for (const line of formatAccountSummary(currentAccounts)) {
       console.log(line);
     }
   } catch (error) {

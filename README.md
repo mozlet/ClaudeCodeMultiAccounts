@@ -2,7 +2,7 @@
 
 [![npm version](https://img.shields.io/npm/v/claude-code-multi-accounts?label=npm)](https://www.npmjs.com/package/claude-code-multi-accounts)
 
-This project installs a local workaround for switching Claude Code OAuth accounts by updating `~/.claude.json`.
+This project installs a local workaround for switching Claude Code OAuth accounts by keeping account snapshots in `~/.ClaudeCodeMultiAccounts.json` and writing only the active account back into Claude's live files when switching.
 
 Supported user-facing commands:
 - `cc-switch`
@@ -40,6 +40,7 @@ npx claude-code-multi-accounts install
 What install does:
 - copies the Node CLI into `~/.claude/multi-account-switch/bin`
 - installs `cc-switch`, `cc-sync-oauth`, `ccs`, and `ccso` wrapper commands
+- keeps stored account snapshots in `~/.ClaudeCodeMultiAccounts.json`
 - adds an `auth_success` hook entry to `~/.claude/settings.json`
 - adds a `SessionStart` reminder hook to `~/.claude/settings.json`
 - if `statusLine.command` already exists, wraps it and prepends `use !cc-switch / !ccs` to the existing HUD output
@@ -79,7 +80,7 @@ Available Claude accounts:
   [1] Taylor Example <taylor@example.invalid> - Example Workspace - Teams
   [2] Jordan Example <jordan@example.invalid> - Example Workspace - Enterprise
 
-Run cc-switch <index|email|accountUuid> to make one of these entries the active oauthAccount.
+Run cc-switch <index|email|accountUuid> to make one of these stored entries the active Claude account.
 ```
 
 ```text
@@ -128,19 +129,21 @@ Platform notes:
 - If a shell says `command not found` right after install, restart the shell or run `hash -r` once.
 
 Behavior notes:
-- The tool updates only `oauthList` and `oauthAccount` inside `~/.claude.json`.
-- It preserves stable account ordering instead of moving the active account to the end on every sync.
-- It creates a backup before writing.
+- The tool stores metadata and credential snapshots in `~/.ClaudeCodeMultiAccounts.json`.
+- `cc-sync-oauth` imports the current live account into that store.
+- Switching writes only the active `oauthAccount` back into `~/.claude.json` and the active credential snapshot back into `~/.claude/.credentials.json`.
+- It creates backups before writing live files or the store file.
+- Stored account ordering is stable.
 - If a stored `displayName` is already corrupted, output falls back to the email local part.
-- The displayed plan type is a best-effort inference from the available account fields.
+- The displayed plan type is a best-effort inference from the available account fields and credential snapshot.
 
 Warnings:
 - This is a local workaround, not an official Claude plugin.
-- It mutates internal Claude config files.
+- It still mutates internal Claude live files when switching accounts, but it no longer uses `~/.claude.json` as the primary multi-account store.
 - Native macOS/Linux support is implemented, but still needs real-host validation beyond Windows/WSL testing.
 - npm packaging is prepared, but npm registry publish still requires npm authentication.
 
 After this:
-- npm / `npx` release refresh for `v0.1.2`
+- npm / `npx` release refresh for `v0.2.0`
 - non-AI hook execution path for `/cc-switch` if Claude exposes a direct command hook in the future
 - improve plan type detection beyond the current best-effort inference
