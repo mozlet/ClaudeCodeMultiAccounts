@@ -139,5 +139,6 @@ Warnings:
 - npm packaging is prepared, but npm registry publish still requires npm authentication.
 
 After this:
-- npm publish / `npx` distribution
-- plan type exposure (`Pro`, `Max`, `Teams`, `Enterprise`)
+- npm / `npx` release refresh for `v0.1.2`
+- non-AI hook execution path for `/cc-switch` if Claude exposes a direct command hook in the future
+- improve plan type detection beyond the current best-effort inference
