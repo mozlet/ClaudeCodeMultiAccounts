@@ -312,9 +312,9 @@ function formatRelativeTime(isoString) {
   return `${days}d ago`;
 }
 
-function formatResetEstimate(isoString) {
+function formatResetEstimate(isoString, accountKey) {
   const rateLimitReset = getRateLimitResetAt();
-  if (rateLimitReset) {
+  if (rateLimitReset && accountKey) {
     const diff = rateLimitReset - Date.now();
     if (diff > 0) {
       const hours = Math.floor(diff / (1000 * 60 * 60));
@@ -415,7 +415,7 @@ function formatAccountSummary(accounts) {
     const plan = inferPlanType(entry);
     const lastSynced = formatRelativeTime(entry.lastSyncedAt);
     const lastUsed = formatRelativeTime(entry.lastUsedAt);
-    const resetEst = formatResetEstimate(entry.lastSyncedAt);
+    const resetEst = formatResetEstimate(entry.lastSyncedAt, entry.current ? entry.key : null);
     return `${marker} [${entry.index}] ${displayName} <${email}> - ${org} - ${plan} | synced: ${lastSynced} | used: ${lastUsed} | reset: ${resetEst}`;
   });
 }
