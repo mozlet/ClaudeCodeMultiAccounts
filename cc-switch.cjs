@@ -3,8 +3,9 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const https = require('https');
 
-const STORE_VERSION = '0.2.1';
+const STORE_VERSION = '0.2.2';
 const RESET_WINDOW_DAYS = 7;
 
 function getDefaultConfigPath() {
@@ -31,6 +32,7 @@ function parseArgs(argv) {
     storePath: getDefaultStorePath(),
     backupDir: getDefaultBackupDir(),
     syncOnly: false,
+    usageOnly: false,
     selector: '',
   };
 
@@ -59,6 +61,10 @@ function parseArgs(argv) {
     }
     if (current === '--sync' || current === 'sync') {
       options.syncOnly = true;
+      continue;
+    }
+    if (current === '--usage' || current === 'usage') {
+      options.usageOnly = true;
       continue;
     }
     if (!options.selector) {
@@ -260,30 +266,49 @@ function formatResetEstimate(isoString) {
   return `~${days}d ${remainingHours}h`;
 }
 
-function formatRelativeTime(isoString) {
-  if (!isoString) return 'never';
-  const diff = Date.now() - new Date(isoString).getTime();
-  if (diff < 0) return 'just now';
-  const minutes = Math.floor(diff / 60000);
-  if (minutes < 1) return 'just now';
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
+function fetchUsage(accessToken) {
+  return new Promise((resolve, reject) => {
+    const req = https.get('https://api.anthropic.com/api/oauth/usage', {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'anthropic-version': '2023-06-01',
+      },
+    }, (res) => {
+      let data = '';
+      res.on('data', (chunk) => { data += chunk; });
+      res.on('end', () => {
+        if (res.statusCode !== 200) {
+          reject(new Error(`Usage API returned ${res.statusCode}: ${data}`));
+          return;
+        }
+        try {
+          resolve(JSON.parse(data));
+        } catch (e) {
+          reject(new Error(`Failed to parse usage response: ${data}`));
+        }
+      });
+    });
+    req.on('error', reject);
+    req.setTimeout(10000, () => { req.destroy(); reject(new Error('Usage API timeout')); });
+  });
 }
 
-function formatResetEstimate(isoString) {
-  if (!isoString) return 'unknown';
-  const resetDate = new Date(new Date(isoString).getTime() + RESET_WINDOW_DAYS * 24 * 60 * 60 * 1000);
-  const now = new Date();
-  const diff = resetDate.getTime() - now.getTime();
-  if (diff <= 0) return 'reset now';
-  const hours = Math.floor(diff / (1000 * 60 * 60));
-  if (hours < 24) return `~${hours}h`;
-  const days = Math.floor(hours / 24);
-  const remainingHours = hours % 24;
-  return `~${days}d ${remainingHours}h`;
+function formatUsageInfo(usage) {
+  const lines = [];
+  if (usage.five_hour) {
+    const pct = typeof usage.five_hour.utilization === 'number' ? usage.five_hour.utilization.toFixed(1) : 'N/A';
+    const resetsAt = usage.five_hour.resets_at ? new Date(usage.five_hour.resets_at).toLocaleString() : 'unknown';
+    lines.push(`5-hour window: ${pct}% used | resets: ${resetsAt}`);
+  }
+  if (usage.seven_day) {
+    const pct = typeof usage.seven_day.utilization === 'number' ? usage.seven_day.utilization.toFixed(1) : 'N/A';
+    const resetsAt = usage.seven_day.resets_at ? new Date(usage.seven_day.resets_at).toLocaleString() : 'unknown';
+    lines.push(`7-day window: ${pct}% used | resets: ${resetsAt}`);
+  }
+  if (lines.length === 0) {
+    lines.push('No usage data available for this account.');
+  }
+  return lines;
 }
 
 function formatAccountSummary(accounts) {
@@ -320,6 +345,19 @@ function main() {
     const config = readJson(options.configPath);
     const credentials = readJson(options.credentialsPath);
     const existingStore = normalizeStore(readJsonIfExists(options.storePath, { version: STORE_VERSION, accounts: [] }));
+
+    if (options.usageOnly) {
+      const accessToken = credentials?.claudeAiOauth?.accessToken;
+      if (!accessToken) {
+        throw new Error('No access token found in credentials file.');
+      }
+      console.log('Fetching usage from Claude API...');
+      return fetchUsage(accessToken).then((usage) => {
+        for (const line of formatUsageInfo(usage)) {
+          console.log(line);
+        }
+      });
+    }
 
     if (options.syncOnly) {
       const result = syncStoreFromLive(existingStore, config, credentials);
@@ -361,7 +399,6 @@ function main() {
     nextConfig.oauthAccount = deepCopy(selected.metadata);
 
     writeLiveState(nextConfig, nextCredentials, options);
-    writeStore(store, options);
     writeStore(store, options);
 
     const currentAccounts = getDisplayAccounts(store, selected.metadata);
