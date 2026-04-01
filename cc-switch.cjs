@@ -473,11 +473,6 @@ function main() {
         writeStore(store, options);
         console.log(`Saved the current account snapshot into ${path.basename(options.storePath)} before showing the account list.`);
       }
-      console.log('Available Claude accounts:');
-      for (const line of formatAccountSummary(accounts)) {
-        console.log(line);
-      }
-      console.log('');
 
       if (options.showUsage) {
         const accessToken = credentials?.claudeAiOauth?.accessToken;
@@ -490,21 +485,39 @@ function main() {
               }
               console.log('');
             }
+            console.log('Available Claude accounts:');
+            for (const line of formatAccountSummary(getDisplayAccounts(store, config.oauthAccount))) {
+              console.log(line);
+            }
+            console.log('');
             console.log(`Run ${options.usageCommand} <index> to make one of these stored entries the active Claude account.`);
           }).catch((err) => {
             if (err.message && err.message.includes('401')) {
+              console.log('Available Claude accounts:');
+              for (const line of formatAccountSummary(getDisplayAccounts(store, config.oauthAccount))) {
+                console.log(line);
+              }
+              console.log('');
               console.log(`Run ${options.usageCommand} <index> to make one of these stored entries the active Claude account.`);
               return;
             }
             console.log(`Usage info unavailable: ${err.message}`);
+            console.log('');
+            console.log('Available Claude accounts:');
+            for (const line of formatAccountSummary(getDisplayAccounts(store, config.oauthAccount))) {
+              console.log(line);
+            }
             console.log('');
             console.log(`Run ${options.usageCommand} <index> to make one of these stored entries the active Claude account.`);
           });
         }
       }
 
-      console.log(`Run ${options.usageCommand} <index> to make one of these stored entries the active Claude account.`);
-
+      console.log('Available Claude accounts:');
+      for (const line of formatAccountSummary(accounts)) {
+        console.log(line);
+      }
+      console.log('');
       console.log(`Run ${options.usageCommand} <index> to make one of these stored entries the active Claude account.`);
       return;
     }
