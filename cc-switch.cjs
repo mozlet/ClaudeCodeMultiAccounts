@@ -81,6 +81,7 @@ function parseArgs(argv) {
     usageOnly: false,
     removeOnly: false,
     removeIndex: null,
+    showUsage: settings.showUsage !== false,
     selector: '',
   };
 
@@ -446,35 +447,28 @@ async function refreshStoredUsageSnapshots(store, currentKey) {
   let currentUsage = null;
   let changed = false;
 
-  const orderedAccounts = [...store.accounts].sort((a, b) => {
-    if (a.key === currentKey) return -1;
-    if (b.key === currentKey) return 1;
-    return 0;
-  });
-
-  for (const entry of orderedAccounts) {
-    const accessToken = entry.credentials?.claudeAiOauth?.accessToken;
-    if (!accessToken) continue;
-
-    try {
-      const usage = await fetchUsage(accessToken);
-      if (entry.key === currentKey) {
+  const currentEntry = store.accounts.find((e) => e.key === currentKey);
+  if (currentEntry) {
+    const accessToken = currentEntry.credentials?.claudeAiOauth?.accessToken;
+    if (accessToken) {
+      try {
+        const usage = await fetchUsage(accessToken);
         currentUsage = usage;
-      }
-      const nextSnapshot = toUsageSnapshot(usage);
-      if (!nextSnapshot) continue;
-
-      const idx = store.accounts.findIndex((e) => e.key === entry.key);
-      if (idx >= 0) {
-        const before = JSON.stringify(store.accounts[idx].usageSnapshot || null);
-        const after = JSON.stringify(nextSnapshot);
-        if (before !== after) {
-          store.accounts[idx].usageSnapshot = nextSnapshot;
-          changed = true;
+        const nextSnapshot = toUsageSnapshot(usage);
+        if (nextSnapshot) {
+          const idx = store.accounts.findIndex((e) => e.key === currentKey);
+          if (idx >= 0) {
+            const before = JSON.stringify(store.accounts[idx].usageSnapshot || null);
+            const after = JSON.stringify(nextSnapshot);
+            if (before !== after) {
+              store.accounts[idx].usageSnapshot = nextSnapshot;
+              changed = true;
+            }
+          }
         }
+      } catch {
+        // Keep the previous snapshot if this refresh fails.
       }
-    } catch {
-      // Keep the previous snapshot if this refresh fails.
     }
   }
 
@@ -602,38 +596,40 @@ function main() {
         console.log(`Saved the current account snapshot into ${path.basename(options.storePath)} before showing the account list.`);
       }
 
-      if (options.showUsage) {
-        const accessToken = credentials?.claudeAiOauth?.accessToken;
-        if (accessToken) {
-          return refreshStoredUsageSnapshots(store, getAccountKey(config.oauthAccount)).then(({ changed }) => {
-            if (changed) {
-              writeStore(store, options);
-            }
-            console.log('Available Claude accounts:');
-            for (const line of formatAccountSummary(getDisplayAccounts(store, config.oauthAccount))) {
+      // Always refresh current account usage, regardless of showUsage setting.
+      // showUsage only controls whether the detailed usage block is printed.
+      const accessToken = credentials?.claudeAiOauth?.accessToken;
+      if (accessToken) {
+        return refreshStoredUsageSnapshots(store, getAccountKey(config.oauthAccount)).then(({ currentUsage, changed }) => {
+          if (changed) {
+            writeStore(store, options);
+          }
+          if (options.showUsage && currentUsage) {
+            console.log('--- Usage ---');
+            for (const line of formatUsageInfo(currentUsage)) {
               console.log(line);
             }
             console.log('');
-            console.log(`Run ${options.usageCommand} <index> to make one of these stored entries the active Claude account.`);
-          }).catch((err) => {
-            if (err.message && err.message.includes('401')) {
-              console.log('Available Claude accounts:');
-              for (const line of formatAccountSummary(getDisplayAccounts(store, config.oauthAccount))) {
-                console.log(line);
-              }
-              console.log('');
-            console.log(`Run ${options.usageCommand} <index> to make one of these stored entries the active Claude account.`);
-            console.log(`Run ${options.usageCommand} --remove <index> to remove a stored account.`);
-              return;
-            }
-            console.log('Available Claude accounts:');
-            for (const line of formatAccountSummary(getDisplayAccounts(store, config.oauthAccount))) {
-              console.log(line);
-            }
-            console.log('');
-            console.log(`Run ${options.usageCommand} <index> to make one of these stored entries the active Claude account.`);
-          });
-        }
+          }
+          console.log('Available Claude accounts:');
+          for (const line of formatAccountSummary(getDisplayAccounts(store, config.oauthAccount))) {
+            console.log(line);
+          }
+          console.log('');
+          console.log(`Run ${options.usageCommand} <index> to make one of these stored entries the active Claude account.`);
+          console.log(`Run ${options.usageCommand} --remove <index> to remove a stored account.`);
+        }).catch((err) => {
+          if (err.message && err.message.includes('401')) {
+            // Silently ignore 401 errors.
+          }
+          console.log('Available Claude accounts:');
+          for (const line of formatAccountSummary(getDisplayAccounts(store, config.oauthAccount))) {
+            console.log(line);
+          }
+          console.log('');
+          console.log(`Run ${options.usageCommand} <index> to make one of these stored entries the active Claude account.`);
+          console.log(`Run ${options.usageCommand} --remove <index> to remove a stored account.`);
+        });
       }
 
       console.log('Available Claude accounts:');
