@@ -40,15 +40,6 @@ cd ClaudeCodeMultiAccounts
 ./install.sh    # macOS / Linux / WSL
 ```
 
-**Manual (from source):**
-
-```bash
-git clone https://github.com/Leuconoe/ClaudeCodeMultiAccounts.git
-cd ClaudeCodeMultiAccounts
-./install.cmd   # Windows
-./install.sh    # macOS / Linux / WSL
-```
-
 What install does:
 - copies the Node CLI into `~/.claude/multi-account-switch/bin`
 - installs `cc-switch`, `cc-sync-oauth`, `ccs`, and `ccso` wrapper commands
@@ -65,16 +56,6 @@ Uninstall:
 
 ```bash
 npx claude-code-multi-accounts uninstall
-```
-
-**Manual (from source):**
-
-```powershell
-./uninstall.cmd   # Windows
-```
-
-```bash
-./uninstall.sh    # macOS / Linux / WSL
 ```
 
 **Manual (from source):**
