@@ -412,6 +412,63 @@ function formatUsageInfo(usage) {
   return lines;
 }
 
+function toUsageSnapshot(usage) {
+  if (!usage || usage.rate_limited) return null;
+  const hasFiveHour = usage.five_hour && (typeof usage.five_hour.utilization === 'number' || usage.five_hour.resets_at);
+  const hasSevenDay = usage.seven_day && (typeof usage.seven_day.utilization === 'number' || usage.seven_day.resets_at);
+  if (!hasFiveHour && !hasSevenDay) return null;
+  return {
+    five_hour: usage.five_hour ? {
+      utilization: usage.five_hour.utilization,
+      resets_at: usage.five_hour.resets_at,
+    } : undefined,
+    seven_day: usage.seven_day ? {
+      utilization: usage.seven_day.utilization,
+      resets_at: usage.seven_day.resets_at,
+    } : undefined,
+    fetchedAt: new Date().toISOString(),
+  };
+}
+
+async function refreshStoredUsageSnapshots(store, currentKey) {
+  let currentUsage = null;
+  let changed = false;
+
+  const orderedAccounts = [...store.accounts].sort((a, b) => {
+    if (a.key === currentKey) return -1;
+    if (b.key === currentKey) return 1;
+    return 0;
+  });
+
+  for (const entry of orderedAccounts) {
+    const accessToken = entry.credentials?.claudeAiOauth?.accessToken;
+    if (!accessToken) continue;
+
+    try {
+      const usage = await fetchUsage(accessToken);
+      if (entry.key === currentKey) {
+        currentUsage = usage;
+      }
+      const nextSnapshot = toUsageSnapshot(usage);
+      if (!nextSnapshot) continue;
+
+      const idx = store.accounts.findIndex((e) => e.key === entry.key);
+      if (idx >= 0) {
+        const before = JSON.stringify(store.accounts[idx].usageSnapshot || null);
+        const after = JSON.stringify(nextSnapshot);
+        if (before !== after) {
+          store.accounts[idx].usageSnapshot = nextSnapshot;
+          changed = true;
+        }
+      }
+    } catch {
+      // Keep the previous snapshot if this refresh fails.
+    }
+  }
+
+  return { currentUsage, changed };
+}
+
 function formatUsagePercent(value) {
   if (typeof value !== 'number' || Number.isNaN(value)) return '?';
   return `${Math.round(value)}%`;
@@ -517,28 +574,17 @@ function main() {
       if (options.showUsage) {
         const accessToken = credentials?.claudeAiOauth?.accessToken;
         if (accessToken) {
-          return fetchUsage(accessToken).then((usage) => {
-            if (!usage.rate_limited) {
-              const currentKey = getAccountKey(config.oauthAccount);
-              const currentIndex = store.accounts.findIndex((e) => e.key === currentKey);
-              if (currentIndex >= 0) {
-                store.accounts[currentIndex].usageSnapshot = {
-                  five_hour: usage.five_hour ? {
-                    utilization: usage.five_hour.utilization,
-                    resets_at: usage.five_hour.resets_at,
-                  } : undefined,
-                  seven_day: usage.seven_day ? {
-                    utilization: usage.seven_day.utilization,
-                    resets_at: usage.seven_day.resets_at,
-                  } : undefined,
-                  fetchedAt: new Date().toISOString(),
-                };
-                writeStore(store, options);
-              }
+          return refreshStoredUsageSnapshots(store, getAccountKey(config.oauthAccount)).then(({ currentUsage, changed }) => {
+            if (changed) {
+              writeStore(store, options);
             }
             console.log('--- Usage ---');
-            for (const line of formatUsageInfo(usage)) {
-              console.log(line);
+            if (currentUsage) {
+              for (const line of formatUsageInfo(currentUsage)) {
+                console.log(line);
+              }
+            } else {
+              console.log('Usage info unavailable for the current account.');
             }
             console.log('');
             console.log('Available Claude accounts:');

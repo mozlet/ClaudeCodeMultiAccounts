@@ -76,12 +76,13 @@ Example shell output:
 ```text
 $ cc-switch
 --- Usage ---
-Usage API is rate limited. Resets in ~45m 22s (at 10:52 PM).
+5h used/reset: 70.0% / 2026. 4. 2. 9:05 PM
+7d used/reset: 33.0% / 2026. 4. 7. 11:00 PM
 
 Available Claude accounts:
-* [0] Alex Example <alex@example.invalid> - Example Workspace - Pro | synced: just now | used: 3h ago | reset: ~45m 22s
-  [1] Taylor Example <taylor@example.invalid> - Example Workspace - Teams | synced: never | used: never | reset: ~6d 17h
-  [2] Jordan Example <jordan@example.invalid> - Example Workspace - Enterprise | synced: 1d ago | used: never | reset: ~5d 12h
+* [0] Alex Example <alex@example.invalid> - Example Workspace - Pro | 5H:70%(~3h 5min) | 7D:33% (1D 23h) | synced: just now
+  [1] Taylor Example <taylor@example.invalid> - Example Workspace - Teams | 5H:?(unknown) | 7D:? (unknown) | synced: never
+  [2] Jordan Example <jordan@example.invalid> - Example Workspace - Enterprise | 5H:42%(~1h 10min) | 7D:51% (4D 6h) | synced: 1d ago
 
 Run cc-switch <index> to make one of these stored entries the active Claude account.
 ```
@@ -91,15 +92,15 @@ $ cc-switch 1
 Switched active account to [1] Taylor Example <taylor@example.invalid> (Teams).
 
 Stored account list:
-  [0] Alex Example <alex@example.invalid> - Example Workspace - Pro | synced: just now | used: 3h ago | reset: unknown
-* [1] Taylor Example <taylor@example.invalid> - Example Workspace - Teams | synced: never | used: just now | reset: unknown
-  [2] Jordan Example <jordan@example.invalid> - Example Workspace - Enterprise | synced: 1d ago | used: never | reset: unknown
+  [0] Alex Example <alex@example.invalid> - Example Workspace - Pro | 5H:70%(unknown) | 7D:33% (unknown) | synced: just now
+* [1] Taylor Example <taylor@example.invalid> - Example Workspace - Teams | 5H:?(unknown) | 7D:? (unknown) | synced: never
+  [2] Jordan Example <jordan@example.invalid> - Example Workspace - Enterprise | 5H:42%(unknown) | 7D:51% (unknown) | synced: 1d ago
 ```
 
 Output columns:
 - `synced`: When the account was last synced into the store
-- `used`: When the account was last selected via switch
-- `reset`: Rate limit reset countdown (current account only) or 7-day window estimate
+- `5H`: Current or cached 5-hour usage percent and reset estimate
+- `7D`: Current or cached 7-day usage percent and reset estimate
 
 Claude chat shell usage:
 
