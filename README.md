@@ -154,7 +154,7 @@ Warnings:
 - npm packaging is prepared, but npm registry publish still requires npm authentication.
 
 After this:
-- npm / `npx` release refresh for `v0.2.3`
+- npm / `npx` release refresh for `v0.2.4`
 - non-AI hook execution path for `/cc-switch` if Claude exposes a direct command hook in the future
 - improve plan type detection beyond the current best-effort inference
 
