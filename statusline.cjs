@@ -19,7 +19,7 @@ function readJsonIfExists(filePath, fallback = null) {
 }
 
 function getStatuslineLabel() {
-  return 'use !cc-switch / !ccs';
+  return 'use !ccs';
 }
 
 function runDownstream(input) {
