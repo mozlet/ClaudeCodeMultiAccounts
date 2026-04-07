@@ -22,9 +22,27 @@ function getStatuslineLabel() {
   return 'use !ccs';
 }
 
+function isStaleDownstreamTarget(target) {
+  if (!target || target.type !== 'command' || !target.command) {
+    return true;
+  }
+
+  const command = String(target.command).toLowerCase();
+
+  if (command.includes('tabber') || command.includes('omc-hud')) {
+    return true;
+  }
+
+  if ((command.endsWith('.py') || command.includes('.py"') || command.includes(".py'")) && !command.includes('python')) {
+    return true;
+  }
+
+  return false;
+}
+
 function runDownstream(input) {
   const target = readJsonIfExists(getStatuslineTargetPath(), null);
-  if (!target || target.type !== 'command' || !target.command) {
+  if (isStaleDownstreamTarget(target)) {
     return '';
   }
 
@@ -39,7 +57,12 @@ function runDownstream(input) {
     return '';
   }
 
-  return (result.stdout || '').trimEnd();
+  const output = (result.stdout || '').trimEnd();
+  if (output.includes('Plugin not installed') || output.includes('[OMC HUD]')) {
+    return '';
+  }
+
+  return output;
 }
 
 function prependLabel(label, downstream) {

@@ -32,6 +32,23 @@ function writeFileExecutable(filePath, content) {
   }
 }
 
+function isStaleStatusLineTarget(statusLine) {
+  if (!statusLine || statusLine.type !== 'command' || !statusLine.command) {
+    return true;
+  }
+
+  const command = String(statusLine.command).toLowerCase();
+  if (command.includes('tabber') || command.includes('omc-hud')) {
+    return true;
+  }
+
+  if ((command.endsWith('.py') || command.includes('.py\"') || command.includes(".py'")) && !command.includes('python')) {
+    return true;
+  }
+
+  return false;
+}
+
 function installCommands() {
   const repoRoot = __dirname;
   const home = os.homedir();
@@ -188,7 +205,7 @@ ${syncCommandBody}
     : `node '${statuslineTarget}'`;
 
   if (!existingStatusLine || existingStatusLine.command !== statusLineCommand) {
-    if (existingStatusLine?.type === 'command' && existingStatusLine.command) {
+    if (existingStatusLine?.type === 'command' && existingStatusLine.command && !isStaleStatusLineTarget(existingStatusLine)) {
       fs.writeFileSync(statuslineTargetConfigPath, `${JSON.stringify(existingStatusLine, null, 2)}\n`, 'utf8');
     } else if (fs.existsSync(statuslineTargetConfigPath)) {
       fs.rmSync(statuslineTargetConfigPath, { force: true });
