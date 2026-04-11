@@ -80,6 +80,7 @@ function parseArgs(argv) {
     storePath: getDefaultStorePath(),
     backupDir: getDefaultBackupDir(),
     syncOnly: false,
+    touchCurrentOnly: false,
     usageOnly: false,
     removeOnly: false,
     removeIndex: null,
@@ -112,6 +113,10 @@ function parseArgs(argv) {
     }
     if (current === '--sync' || current === 'sync') {
       options.syncOnly = true;
+      continue;
+    }
+    if (current === '--touch-current') {
+      options.touchCurrentOnly = true;
       continue;
     }
     if (current === '--usage' || current === 'usage') {
@@ -163,10 +168,17 @@ async function main() {
     const existingStore = normalizeStore(readJsonIfExists(options.storePath, { version: STORE_VERSION, accounts: [] }), STORE_VERSION);
 
     if (options.usageOnly) {
+      const syncedForUsage = syncStoreFromLive(existingStore, config, credentials, deepCopy, STORE_VERSION);
       await runUsageAction({
+        store: syncedForUsage.store,
+        config,
         credentials,
         fetchUsage: fetchUsageApi,
         formatUsageInfo: formatUsageInfoUi,
+        refreshStoredUsageSnapshots: refreshStoredUsageSnapshotsUi,
+        writeStore,
+        options,
+        getAccountKey,
         setRateLimitResetAt,
         setRateLimitResetAtFromIso,
         ensureDir,
@@ -183,6 +195,18 @@ async function main() {
         options,
         path,
       });
+      return;
+    }
+
+    if (options.touchCurrentOnly) {
+      const syncedTouch = syncStoreFromLive(existingStore, config, credentials, deepCopy, STORE_VERSION);
+      const storeTouch = syncedTouch.store;
+      const currentKey = getAccountKey(config.oauthAccount);
+      const idx = storeTouch.accounts.findIndex((e) => e.key === currentKey);
+      if (idx >= 0) {
+        storeTouch.accounts[idx].lastUsedAt = new Date().toISOString();
+      }
+      writeStore(storeTouch, options);
       return;
     }
 
