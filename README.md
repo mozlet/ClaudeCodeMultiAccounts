@@ -84,15 +84,16 @@ Example shell output:
 ```text
 $ cc-switch
 --- Usage ---
-5h: 78.0% / 2026. 4. 2. 2:00 PM
-7d: 69.0% / 2026. 4. 7. 10:00 PM
+5h remaining/reset: 78.0% / 2026. 4. 22. 2:00 PM
+7d remaining/reset: 94.0% / 2026. 4. 24. 9:00 AM
 
 Available Claude accounts:
-* [0] Alex Example | Pro | 5H:78%(~2h 7min) | 7D:69%(5D 10h) | used:19m ago
-  [1] Taylor Example | Team Std | 5H:?(unknown) | 7D:?(unknown) | used:1d ago
-  [2] Jordan Example | Ent | 5H:58%(~1h 10min) | 7D:49%(4D 6h) | used:1d ago
+* [0] Alex Example | Pro | 5H:78%(~2h 44min) | 7D:94%(1D 21h) | used:3m ago
+  [1] Taylor Example | Team Std | 5H:71%(now) | 7D:81%(1D 21h) | used:19h ago
+  [2] Jordan Example | Team Prem | 5H:0%(now) | 7D:65%(2D 5h) | used:1d ago
 
 Run cc-switch <index> to make one of these stored entries the active Claude account.
+Run cc-switch --remove <index> to remove a stored account.
 ```
 
 ```text
@@ -100,16 +101,16 @@ $ cc-switch 1
 Switched active account to [1] Taylor Example <taylor@example.invalid> (Teams).
 
 Stored account list:
-  [0] Alex Example | Pro | 5H:78%(unknown) | 7D:69%(unknown) | used:19m ago
-* [1] Taylor Example | Team Std | 5H:?(unknown) | 7D:?(unknown) | used:just now
-  [2] Jordan Example | Ent | 5H:58%(unknown) | 7D:49%(unknown) | used:1d ago
+  [0] Alex Example | Pro | 5H:78%(unknown) | 7D:94%(unknown) | used:19m ago
+* [1] Taylor Example | Team Std | 5H:71%(unknown) | 7D:81%(unknown) | used:just now
+  [2] Jordan Example | Team Prem | 5H:0%(unknown) | 7D:65%(unknown) | used:1d ago
 ```
 
 Output columns:
 - `5H`: Current or cached 5-hour remaining quota and reset estimate
 - `7D`: Current or cached 7-day remaining quota and reset estimate
 - `used`: When the account was last selected, or when Claude startup refreshed the active account marker
-- Top usage block: live `5h` and `7d` remaining values fetched from Claude when available
+- Top usage block: live `5h remaining/reset` and `7d remaining/reset` values fetched from Claude when available
 
 Claude chat shell usage:
 
@@ -164,7 +165,7 @@ Warnings:
 - npm packaging is prepared, but npm registry publish still requires npm authentication.
 
 After this:
-- npm / `npx` release refresh for `v0.3.4`
+- npm / `npx` release refresh for `v0.3.7`
 - non-AI hook execution path for `/cc-switch` if Claude exposes a direct command hook in the future
 - improve plan type detection beyond the current best-effort inference
 
