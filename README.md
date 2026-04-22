@@ -88,9 +88,9 @@ $ cc-switch
 7d: 69.0% / 2026. 4. 7. 10:00 PM
 
 Available Claude accounts:
-* [0] Alex Example <alex@example.invalid> - Example Workspace - Pro | 5H:78% (~2h 7min) | 7D:69% (5D 10h) | last used: 19m ago
-  [1] Taylor Example <taylor@example.invalid> - Example Workspace - Teams | 5H:? (unknown) | 7D:? (unknown) | last used: 1d ago
-  [2] Jordan Example <jordan@example.invalid> - Example Workspace - Enterprise | 5H:58% (~1h 10min) | 7D:49% (4D 6h) | last used: 1d ago
+* [0] Alex Example | Pro | 5H:78%(~2h 7min) | 7D:69%(5D 10h) | used:19m ago
+  [1] Taylor Example | Team Std | 5H:?(unknown) | 7D:?(unknown) | used:1d ago
+  [2] Jordan Example | Ent | 5H:58%(~1h 10min) | 7D:49%(4D 6h) | used:1d ago
 
 Run cc-switch <index> to make one of these stored entries the active Claude account.
 ```
@@ -100,15 +100,15 @@ $ cc-switch 1
 Switched active account to [1] Taylor Example <taylor@example.invalid> (Teams).
 
 Stored account list:
-  [0] Alex Example <alex@example.invalid> - Example Workspace - Pro | 5H:78% (unknown) | 7D:69% (unknown) | last used: 19m ago
-* [1] Taylor Example <taylor@example.invalid> - Example Workspace - Teams | 5H:? (unknown) | 7D:? (unknown) | last used: just now
-  [2] Jordan Example <jordan@example.invalid> - Example Workspace - Enterprise | 5H:58% (unknown) | 7D:49% (unknown) | last used: 1d ago
+  [0] Alex Example | Pro | 5H:78%(unknown) | 7D:69%(unknown) | used:19m ago
+* [1] Taylor Example | Team Std | 5H:?(unknown) | 7D:?(unknown) | used:just now
+  [2] Jordan Example | Ent | 5H:58%(unknown) | 7D:49%(unknown) | used:1d ago
 ```
 
 Output columns:
 - `5H`: Current or cached 5-hour remaining quota and reset estimate
 - `7D`: Current or cached 7-day remaining quota and reset estimate
-- `last used`: When the account was last selected, or when Claude startup refreshed the active account marker
+- `used`: When the account was last selected, or when Claude startup refreshed the active account marker
 - Top usage block: live `5h` and `7d` remaining values fetched from Claude when available
 
 Claude chat shell usage:
